@@ -4,7 +4,9 @@ use futures::{SinkExt, StreamExt};
 use serde_json::Value;
 use tokio_tungstenite::tungstenite::Message;
 use url::Url;
-use rand::Rng;
+use rand::{Rng, SeedableRng};
+use rand::rngs::SmallRng;
+use rand::distributions::{Uniform, Bernoulli};
 use std::time::Duration;
 use tokio::time::timeout;
 
@@ -51,9 +53,8 @@ pub async fn run_ingest(state: AppState, pairs: Vec<String>) {
 
                 // spawn a small task to update a 'live' ticker with tiny random walk so API is active while connected
                 let live_state = state.clone();
-                let live_ep = ep.to_string();
                 tokio::spawn(async move {
-                    let mut rng = rand::thread_rng();
+                    let mut rng = SmallRng::from_entropy();
                     let mut price = {
                         // get last price if any
                         if let Some(entry) = live_state.latest.iter().next() {
@@ -63,11 +64,13 @@ pub async fn run_ingest(state: AppState, pairs: Vec<String>) {
                         }
                     };
                     let mut interval = tokio::time::interval(Duration::from_millis(500));
+                    let change_dist = Uniform::new(-20.0f64, 20.0f64);
+                    let spread_dist = Uniform::new(0.2f64, 2.0f64);
                     loop {
                         interval.tick().await;
-                        let change = rng.gen_range(-20.0..20.0);
+                        let change = rng.sample(change_dist);
                         price = (price + change).max(1.0);
-                        let spread = rng.gen_range(0.2..2.0);
+                        let spread = rng.sample(spread_dist);
                         let tick = Tick {
                             pair: "BTC/USD".to_string(),
                             last: (price * 100.0).round() / 100.0,
@@ -150,20 +153,23 @@ async fn start_mock_generator(state: AppState) {
     tracing::info!("Starting mock data generator (500ms updates)");
     let mock_state = state.clone();
     tokio::spawn(async move {
-        let mut rng = rand::thread_rng();
+        let mut rng = SmallRng::from_entropy();
         let mut price = if let Some(entry) = mock_state.latest.iter().next() {
             entry.value().last
         } else {
             65000.0
         };
-
         let mut interval = tokio::time::interval(Duration::from_millis(500));
+        let drift_dist = Uniform::new(-10.0f64, 10.0f64);
+        let jump_dist = Uniform::new(-200.0f64, 200.0f64);
+        let spread_dist = Uniform::new(0.2f64, 3.0f64);
+        let jump_coin = Bernoulli::new(0.02).unwrap();
         loop {
             interval.tick().await;
-            let drift = rng.gen_range(-10.0..10.0);
-            let jump = if rng.gen_bool(0.02) { rng.gen_range(-200.0..200.0) } else { 0.0 };
+            let drift = rng.sample(drift_dist);
+            let jump = if rng.sample(jump_coin) { rng.sample(jump_dist) } else { 0.0 };
             price = (price + drift + jump).max(1.0);
-            let spread = rng.gen_range(0.2..3.0);
+            let spread = rng.sample(spread_dist);
             let tick = Tick {
                 pair: "BTC/USD".to_string(),
                 last: (price * 100.0).round() / 100.0,
