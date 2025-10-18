@@ -1,0 +1,39 @@
+[package]
+name = "hft-crypto-track"
+version = "0.1.0"
+edition = "2024"
+
+
+
+
+[dependencies]
+# runtime
+tokio = { version = "1.38", features = ["full"] }
+
+# websocket client
+tokio-tungstenite = "0.21"
+
+# http server
+axum = "0.7"
+hyper = { version = "0.14", features = ["full"] }
+
+# concurrency / utils
+futures = "0.3"
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+url = "2.4"
+tracing = "0.1"
+tracing-subscriber = "0.3"
+
+# sync structures
+dashmap = "5.4"
+
+# small helpers
+chrono = { version = "0.4", features = ["serde"] }
+
+# for WebSocket server to clients
+tokio-stream = "0.1"
+
+[profile.release]
+opt-level = 3
+
