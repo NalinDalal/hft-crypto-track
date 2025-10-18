@@ -3,7 +3,7 @@ mod state;
 mod api;
 
 use crate::state::AppState;
-use axum::Server;
+use hyper::server::Server;
 use std::net::SocketAddr;
 use tracing_subscriber;
 
@@ -28,9 +28,13 @@ async fn main() {
     let app = api::make_router(state.clone());
 
     tracing::info!("Starting server on {}", listen_addr);
-    // run with axum/hyper's server
+
+    // Create a make service that provides client's connect info (SocketAddr)
+    let make_svc = app.into_make_service_with_connect_info::<SocketAddr>();
+
+    // Run the server using hyper's Server
     Server::bind(&listen_addr)
-        .serve(app.into_make_service())
+        .serve(make_svc)
         .await
         .unwrap();
 }

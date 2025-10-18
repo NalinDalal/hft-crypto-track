@@ -38,7 +38,7 @@ async fn get_history(Query(q): Query<PairQuery>, state: axum::extract::State<App
     }
 }
 
-async fn ws_handler(ws: WebSocketUpgrade, Query(q): Query<PairQuery>, state: axum::extract::State<AppState>) -> impl IntoResponse {
+async fn ws_handler(ws: WebSocketUpgrade, Query(_q): Query<PairQuery>, state: axum::extract::State<AppState>) -> impl IntoResponse {
     // we ignore pair filter on server side for simplicity; clients may filter ticks they receive
     ws.on_upgrade(move |socket| handle_socket(socket, state))
 }
