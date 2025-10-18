@@ -1,7 +1,7 @@
 [package]
 name = "hft-crypto-track"
 version = "0.1.0"
-edition = "2024"
+edition = "2021"
 
 
 
@@ -14,7 +14,7 @@ tokio = { version = "1.38", features = ["full"] }
 tokio-tungstenite = "0.21"
 
 # http server
-axum = "0.7"
+axum = { version = "0.7", features = ["ws"] }
 hyper = { version = "0.14", features = ["full"] }
 
 # concurrency / utils
@@ -32,7 +32,7 @@ dashmap = "5.4"
 chrono = { version = "0.4", features = ["serde"] }
 
 # for WebSocket server to clients
-tokio-stream = "0.1"
+tokio-stream = { version = "0.1", features = ["sync"] }
 
 [profile.release]
 opt-level = 3

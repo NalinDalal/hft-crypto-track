@@ -3,7 +3,7 @@ mod state;
 mod api;
 
 use crate::state::AppState;
-use axum::Server;
+use hyper::Server;
 use std::net::SocketAddr;
 use tracing_subscriber;
 
