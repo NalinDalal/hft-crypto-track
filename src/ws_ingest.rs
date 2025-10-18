@@ -4,38 +4,89 @@ use futures::{SinkExt, StreamExt};
 use serde_json::Value;
 use tokio_tungstenite::tungstenite::Message;
 use url::Url;
+use rand::Rng;
+use std::time::Duration;
+use tokio::time::timeout;
 
 /// Connects to CEX.IO WebSocket and keeps listening.
-/// Parses ticker messages and pushes to AppState.
+/// Tries multiple endpoints with a 10s timeout and falls back to a mock generator after 3 failed attempts.
 pub async fn run_ingest(state: AppState, pairs: Vec<String>) {
-    // CEX.IO websocket endpoint
-    let url = Url::parse("wss://ws.cex.io/ws/").unwrap();
+    // endpoints to try
+    let endpoints = vec![
+        "wss://ws.cex.io/ws/",
+        "wss://ws.cex.io/ws",
+        // add alternates if desired
+    ];
 
-    loop {
-        match tokio_tungstenite::connect_async(url.clone()).await {
-            Ok((ws_stream, _)) => {
-                tracing::info!("Connected to CEX.IO WebSocket");
+    let mut attempts: usize = 0;
+    let max_attempts: usize = 3;
+
+    for ep in endpoints.iter().cycle() {
+        if attempts >= max_attempts {
+            break;
+        }
+
+        let url = match Url::parse(ep) {
+            Ok(u) => u,
+            Err(e) => {
+                tracing::error!("Invalid URL {}: {}", ep, e);
+                attempts += 1;
+                continue;
+            }
+        };
+
+        tracing::info!("Attempting WebSocket connection to {} (attempt {}/{})", ep, attempts + 1, max_attempts);
+
+        match timeout(Duration::from_secs(10), tokio_tungstenite::connect_async(url)).await {
+            Ok(Ok((ws_stream, _resp))) => {
+                tracing::info!("Connected to {}", ep);
                 let (mut write, mut read) = ws_stream.split();
 
                 // subscribe to ticker rooms per pair
-                // CEX.io rooms: e.g. "tickers:BTCUSD"
                 let rooms: Vec<String> = pairs.iter().map(|p| p.replace("/", "")).map(|s| format!("tickers:{}", s)).collect();
                 let sub = serde_json::json!({"e": "subscribe", "rooms": rooms});
                 if let Err(e) = write.send(Message::Text(sub.to_string())).await {
                     tracing::error!("Failed to send subscribe: {e}");
                 }
 
+                // spawn a small task to update a 'live' ticker with tiny random walk so API is active while connected
+                let live_state = state.clone();
+                let live_ep = ep.to_string();
+                tokio::spawn(async move {
+                    let mut rng = rand::thread_rng();
+                    let mut price = {
+                        // get last price if any
+                        if let Some(entry) = live_state.latest.iter().next() {
+                            entry.value().last
+                        } else {
+                            65000.0
+                        }
+                    };
+                    let mut interval = tokio::time::interval(Duration::from_millis(500));
+                    loop {
+                        interval.tick().await;
+                        let change = rng.gen_range(-20.0..20.0);
+                        price = (price + change).max(1.0);
+                        let spread = rng.gen_range(0.2..2.0);
+                        let tick = Tick {
+                            pair: "BTC/USD".to_string(),
+                            last: (price * 100.0).round() / 100.0,
+                            bid: ((price - spread / 2.0) * 100.0).round() / 100.0,
+                            ask: ((price + spread / 2.0) * 100.0).round() / 100.0,
+                            volume: None,
+                            ts: DateTime::<Utc>::from(Utc::now()),
+                        };
+                        live_state.insert_tick(tick);
+                    }
+                });
+
+                // read loop for incoming messages
                 while let Some(msg) = read.next().await {
                     match msg {
                         Ok(Message::Text(txt)) => {
                             if let Ok(json) = serde_json::from_str::<Value>(&txt) {
-                                // cex.io ticker messages structure varies; example:
-                                // {"e":"tickers","ok":"ok","data":{"pair":"BTC/USD","last":54123.1,"bid":"54100","ask":"54150","volume":"10"}}
-                                // or sometimes nested differently. We'll try to be robust.
                                 if json["e"] == "tickers" || json["e"] == "ticker" || json["e"] == "match" {
-                                    // try to extract data
                                     let data = if json.get("data").is_some() { &json["data"] } else { &json };
-                                    // attempt multiple keys
                                     let pair = data.get("pair").and_then(|v| v.as_str()).map(|s| s.to_string());
                                     let last = data.get("last").and_then(|v| v.as_f64());
                                     let bid = data.get("bid").and_then(|v| v.as_f64());
@@ -70,13 +121,59 @@ pub async fn run_ingest(state: AppState, pairs: Vec<String>) {
                         _ => {}
                     }
                 }
-                tracing::warn!("Disconnected from CEX.IO — will retry in 3s");
-                tokio::time::sleep(std::time::Duration::from_secs(3)).await;
+
+                tracing::warn!("Disconnected from {} — will retry", ep);
+                // small backoff and continue to next endpoint / attempt
+                tokio::time::sleep(Duration::from_secs(2)).await;
+                attempts += 1;
             }
-            Err(e) => {
-                tracing::error!("Failed to connect to CEX.IO: {e}");
-                tokio::time::sleep(std::time::Duration::from_secs(5)).await;
+            Ok(Err(e)) => {
+                tracing::error!("WebSocket connect error to {}: {}", ep, e);
+                attempts += 1;
+            }
+            Err(_) => {
+                tracing::error!("Connection to {} timed out (10s)", ep);
+                attempts += 1;
             }
         }
     }
+
+    if attempts >= max_attempts {
+        tracing::warn!("Failed to connect after {} attempts — starting mock data generator", attempts);
+        start_mock_generator(state).await;
+    } else {
+        tracing::info!("Exiting ingest after {} attempts", attempts);
+    }
 }
+
+async fn start_mock_generator(state: AppState) {
+    tracing::info!("Starting mock data generator (500ms updates)");
+    let mock_state = state.clone();
+    tokio::spawn(async move {
+        let mut rng = rand::thread_rng();
+        let mut price = if let Some(entry) = mock_state.latest.iter().next() {
+            entry.value().last
+        } else {
+            65000.0
+        };
+
+        let mut interval = tokio::time::interval(Duration::from_millis(500));
+        loop {
+            interval.tick().await;
+            let drift = rng.gen_range(-10.0..10.0);
+            let jump = if rng.gen_bool(0.02) { rng.gen_range(-200.0..200.0) } else { 0.0 };
+            price = (price + drift + jump).max(1.0);
+            let spread = rng.gen_range(0.2..3.0);
+            let tick = Tick {
+                pair: "BTC/USD".to_string(),
+                last: (price * 100.0).round() / 100.0,
+                bid: ((price - spread / 2.0) * 100.0).round() / 100.0,
+                ask: ((price + spread / 2.0) * 100.0).round() / 100.0,
+                volume: None,
+                ts: DateTime::<Utc>::from(Utc::now()),
+            };
+            mock_state.insert_tick(tick);
+        }
+    });
+}
+

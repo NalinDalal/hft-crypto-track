@@ -33,6 +33,7 @@ chrono = { version = "0.4", features = ["serde"] }
 
 # for WebSocket server to clients
 tokio-stream = { version = "0.1", features = ["sync"] }
+rand = "0.9.2"
 
 [profile.release]
 opt-level = 3
