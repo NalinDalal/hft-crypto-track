@@ -182,3 +182,35 @@ async fn start_mock_generator(state: AppState) {
         }
     });
 }
+
+async fn start_mock_generator(state: AppState) {
+    tracing::info!("Starting mock data generator (500ms updates)");
+    let mock_state = state.clone();
+    tokio::spawn(async move {
+        let mut rng = rand::thread_rng();
+        let mut price = if let Some(entry) = mock_state.latest.iter().next() {
+            entry.value().last
+        } else {
+            65000.0
+        };
+
+        let mut interval = tokio::time::interval(Duration::from_millis(500));
+        loop {
+            interval.tick().await;
+            let drift = rng.gen_range(-10.0..10.0);
+            let jump = if rng.gen_bool(0.02) { rng.gen_range(-200.0..200.0) } else { 0.0 };
+            price = (price + drift + jump).max(1.0);
+            let spread = rng.gen_range(0.2..3.0);
+            let tick = Tick {
+                pair: "BTC/USD".to_string(),
+                last: (price * 100.0).round() / 100.0,
+                bid: ((price - spread / 2.0) * 100.0).round() / 100.0,
+                ask: ((price + spread / 2.0) * 100.0).round() / 100.0,
+                volume: None,
+                ts: DateTime::<Utc>::from(Utc::now()),
+            };
+            mock_state.insert_tick(tick);
+        }
+    });
+}
+
