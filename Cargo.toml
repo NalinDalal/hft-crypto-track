@@ -15,7 +15,7 @@ tokio-tungstenite = "0.21"
 
 # http server
 axum = { version = "0.7", features = ["ws"] }
-hyper = { version = "0.14", features = ["full"] }
+hyper = { version = "1.7", features = ["full"] }
 
 # concurrency / utils
 futures = "0.3"
