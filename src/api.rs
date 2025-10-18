@@ -13,6 +13,7 @@ pub struct PairQuery {
 pub fn make_router(state: AppState) -> Router {
     Router::new()
         .route("/api/v1/ticker", get(get_ticker))
+    .route("/api/v1/pairs", get(get_pairs))
         .route("/api/v1/history", get(get_history))
         .route("/ws", get(ws_handler))
         .with_state(state)
@@ -21,10 +22,23 @@ pub fn make_router(state: AppState) -> Router {
 async fn get_ticker(Query(q): Query<PairQuery>, state: axum::extract::State<AppState>) -> impl IntoResponse {
     let pair = q.pair.unwrap_or_else(|| "BTC/USD".to_string());
     if let Some(entry) = state.latest.get(&pair) {
-        Json(serde_json::json!({"ok": true, "data": entry.value().clone()}))
-    } else {
-        Json(serde_json::json!({"ok": false, "error": "pair not found"}))
+        return Json(serde_json::json!({"ok": true, "data": entry.value().clone()}));
     }
+
+    // fallback: match by normalized pair (remove slashes) so queries like BTC/USD match BTCUSD keys
+    let norm = pair.replace("/", "");
+    for r in state.latest.iter() {
+        if r.key().replace("/", "") == norm {
+            return Json(serde_json::json!({"ok": true, "data": r.value().clone()}));
+        }
+    }
+
+    Json(serde_json::json!({"ok": false, "error": "pair not found"}))
+}
+
+async fn get_pairs(state: axum::extract::State<AppState>) -> impl IntoResponse {
+    let pairs: Vec<String> = state.latest.iter().map(|r| r.key().clone()).collect();
+    Json(serde_json::json!({"ok": true, "pairs": pairs}))
 }
 
 async fn get_history(Query(q): Query<PairQuery>, state: axum::extract::State<AppState>) -> impl IntoResponse {

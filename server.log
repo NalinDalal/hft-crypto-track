@@ -1,0 +1,63 @@
+   Compiling hft-crypto-track v0.1.0 (/workspaces/hft-crypto-track)
+warning: use of deprecated function `rand::thread_rng`: Renamed to `rng`
+  --> src/ws_ingest.rs:66:45
+   |
+66 |                         let mut rng = rand::thread_rng();
+   |                                             ^^^^^^^^^^
+   |
+   = note: `#[warn(deprecated)]` on by default
+
+warning: use of deprecated function `rand::thread_rng`: Renamed to `rng`
+   --> src/ws_ingest.rs:160:33
+    |
+160 |             let mut rng = rand::thread_rng();
+    |                                 ^^^^^^^^^^
+
+warning: use of deprecated method `rand::Rng::gen_range`: Renamed to `random_range`
+  --> src/ws_ingest.rs:67:42
+   |
+67 |                         let change = rng.gen_range(-20.0..20.0);
+   |                                          ^^^^^^^^^
+
+warning: use of deprecated method `rand::Rng::gen_range`: Renamed to `random_range`
+  --> src/ws_ingest.rs:69:42
+   |
+69 |                         let spread = rng.gen_range(0.2..2.0);
+   |                                          ^^^^^^^^^
+
+warning: use of deprecated method `rand::Rng::gen_range`: Renamed to `random_range`
+   --> src/ws_ingest.rs:161:29
+    |
+161 |             let drift = rng.gen_range(-10.0..10.0);
+    |                             ^^^^^^^^^
+
+warning: use of deprecated method `rand::Rng::gen_bool`: Renamed to `random_bool`
+   --> src/ws_ingest.rs:162:31
+    |
+162 |             let jump = if rng.gen_bool(0.02) { rng.gen_range(-200.0..200.0) } else { 0.0 };
+    |                               ^^^^^^^^
+
+warning: use of deprecated method `rand::Rng::gen_range`: Renamed to `random_range`
+   --> src/ws_ingest.rs:162:52
+    |
+162 |             let jump = if rng.gen_bool(0.02) { rng.gen_range(-200.0..200.0) } else { 0.0 };
+    |                                                    ^^^^^^^^^
+
+warning: use of deprecated method `rand::Rng::gen_range`: Renamed to `random_range`
+   --> src/ws_ingest.rs:164:30
+    |
+164 |             let spread = rng.gen_range(0.2..3.0);
+    |                              ^^^^^^^^^
+
+warning: `hft-crypto-track` (bin "hft-crypto-track") generated 8 warnings
+    Finished `dev` profile [unoptimized + debuginfo] target(s) in 2.31s
+     Running `target/debug/hft-crypto-track`
+[2m2025-10-18T11:57:49.844324Z[0m [32m INFO[0m [2mhft_crypto_track[0m[2m:[0m Starting server on 127.0.0.1:3000
+[2m2025-10-18T11:57:49.844556Z[0m [32m INFO[0m [2mhft_crypto_track::ws_ingest[0m[2m:[0m Attempting WebSocket connection to wss://ws.cex.io/ws/ (attempt 1/3)
+[2m2025-10-18T11:57:49.913528Z[0m [31mERROR[0m [2mhft_crypto_track::ws_ingest[0m[2m:[0m WebSocket connect error to wss://ws.cex.io/ws/: URL error: TLS support not compiled in
+[2m2025-10-18T11:57:49.913697Z[0m [32m INFO[0m [2mhft_crypto_track::ws_ingest[0m[2m:[0m Attempting WebSocket connection to wss://ws.cex.io/ws (attempt 2/3)
+[2m2025-10-18T11:57:50.007226Z[0m [31mERROR[0m [2mhft_crypto_track::ws_ingest[0m[2m:[0m WebSocket connect error to wss://ws.cex.io/ws: URL error: TLS support not compiled in
+[2m2025-10-18T11:57:50.007394Z[0m [32m INFO[0m [2mhft_crypto_track::ws_ingest[0m[2m:[0m Attempting WebSocket connection to wss://ws.cex.io/ws/ (attempt 3/3)
+[2m2025-10-18T11:57:50.014294Z[0m [31mERROR[0m [2mhft_crypto_track::ws_ingest[0m[2m:[0m WebSocket connect error to wss://ws.cex.io/ws/: URL error: TLS support not compiled in
+[2m2025-10-18T11:57:50.014388Z[0m [33m WARN[0m [2mhft_crypto_track::ws_ingest[0m[2m:[0m Failed to connect after 3 attempts — starting mock data generator
+[2m2025-10-18T11:57:50.014433Z[0m [32m INFO[0m [2mhft_crypto_track::ws_ingest[0m[2m:[0m Starting mock data generator (500ms updates)
