@@ -1,9 +1,8 @@
 use crate::state::AppState;
 use axum::{extract::Query, extract::ws::{Message, WebSocket, WebSocketUpgrade}, response::IntoResponse, routing::get, Json, Router};
 use serde::Deserialize;
-use std::net::SocketAddr;
 use tokio_stream::wrappers::BroadcastStream;
-use futures::{StreamExt, SinkExt};
+use futures::{StreamExt};
 
 #[derive(Deserialize)]
 pub struct PairQuery {
